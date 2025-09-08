@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diep.io Clone - Multiplayer</title>
+    <title>Diep.io Clone - GitHub Pages Ready</title>
     <style>
         * {
             margin: 0;
@@ -164,22 +164,25 @@
             font-size: 16px;
         }
         
-        #multiplayer-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        #hosting-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 300px;
+            display: none;
         }
         
-        #room-id-input {
-            padding: 10px;
-            font-size: 18px;
-            width: 200px;
-            margin: 10px;
-            border-radius: 5px;
-            border: 1px solid #4caf50;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            text-align: center;
+        #github-info-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            font-size: 16px;
+            background: linear-gradient(to bottom, #2196f3, #1976d2);
         }
         
         .player-tag {
@@ -188,6 +191,28 @@
             text-shadow: 1px 1px 2px black;
             pointer-events: none;
             z-index: 2;
+        }
+        
+        #game-over-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        #github-pages-info {
+            margin-top: 20px;
+            background-color: rgba(30, 30, 60, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 600px;
         }
     </style>
 </head>
@@ -206,6 +231,19 @@
         
         <div id="instructions">
             Move: WASD or Arrow Keys | Aim: Mouse | Shoot: Hold Left Mouse Button | Change Tank: 1-3
+        </div>
+        
+        <button id="github-info-btn">GitHub Hosting Info</button>
+        
+        <div id="hosting-info">
+            <h3>Hosting on GitHub Pages</h3>
+            <ol>
+                <li>Create a GitHub account</li>
+                <li>Create a new repository named username.github.io</li>
+                <li>Upload this HTML file as index.html</li>
+                <li>Enable GitHub Pages in repository settings</li>
+                <li>Your game will be at https://username.github.io</li>
+            </ol>
         </div>
         
         <div id="start-screen">
@@ -229,14 +267,26 @@
                 </div>
             </div>
             
-            <div class="panel" id="multiplayer-panel">
-                <h2>Multiplayer Options</h2>
-                <input type="text" id="room-id-input" placeholder="Room ID" maxlength="10">
+            <div class="panel">
+                <h2>Game Mode</h2>
                 <div>
-                    <button id="create-room">Create Room</button>
-                    <button id="join-room">Join Room</button>
+                    <button id="play-solo">Play Solo</button>
+                    <button id="play-ai">Play vs AI</button>
                 </div>
-                <button id="play-solo">Play Solo</button>
+            </div>
+            
+            <div id="github-pages-info">
+                <h3>This game is ready for GitHub Pages</h3>
+                <p>To host it on GitHub Pages, simply save this page as <strong>index.html</strong> and upload it to your GitHub repository named <strong>username.github.io</strong>.</p>
+            </div>
+        </div>
+        
+        <div id="game-over-screen">
+            <h1 style="font-size: 60px; color: #ff5252; margin-bottom: 20px;">GAME OVER</h1>
+            <div class="panel">
+                <h2>Final Score: <span id="final-score">0</span></h2>
+                <h3>Level Reached: <span id="final-level">1</span></h3>
+                <button id="play-again">Play Again</button>
             </div>
         </div>
     </div>
@@ -250,10 +300,14 @@
         const playersElement = document.getElementById('players');
         const healthFill = document.getElementById('health-fill');
         const startScreen = document.getElementById('start-screen');
-        const roomIdInput = document.getElementById('room-id-input');
-        const createRoomBtn = document.getElementById('create-room');
-        const joinRoomBtn = document.getElementById('join-room');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreElement = document.getElementById('final-score');
+        const finalLevelElement = document.getElementById('final-level');
+        const playAgainBtn = document.getElementById('play-again');
         const playSoloBtn = document.getElementById('play-solo');
+        const playAiBtn = document.getElementById('play-ai');
+        const githubInfoBtn = document.getElementById('github-info-btn');
+        const hostingInfo = document.getElementById('hosting-info');
         const tankClasses = document.querySelectorAll('.tank-class');
         
         // Set canvas size
@@ -268,14 +322,10 @@
         let selectedTankClass = 'basic';
         let mouseDown = false;
         let lastShotTime = 0;
-        let players = {};
-        let playerId = Math.random().toString(36).substring(2, 10);
-        let roomId = null;
-        let isMultiplayer = false;
+        let gameMode = 'solo';
         
         // Player tank
         const player = {
-            id: playerId,
             x: canvas.width / 2,
             y: canvas.height / 2,
             radius: 20,
@@ -287,7 +337,7 @@
             reloadTime: 500,
             damage: 10,
             bulletSpeed: 8,
-            name: 'Player' + Math.floor(Math.random() * 1000),
+            name: 'Player',
             level: 1,
             score: 0
         };
@@ -340,6 +390,8 @@
         });
         
         canvas.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
@@ -359,26 +411,23 @@
             }
         });
         
-        createRoomBtn.addEventListener('click', () => {
-            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-            roomIdInput.value = roomId;
-            isMultiplayer = true;
-            startGame();
-        });
-        
-        joinRoomBtn.addEventListener('click', () => {
-            roomId = roomIdInput.value.trim();
-            if (roomId.length > 0) {
-                isMultiplayer = true;
-                startGame();
-            } else {
-                alert("Please enter a room ID");
-            }
-        });
-        
         playSoloBtn.addEventListener('click', () => {
-            isMultiplayer = false;
+            gameMode = 'solo';
             startGame();
+        });
+        
+        playAiBtn.addEventListener('click', () => {
+            gameMode = 'ai';
+            startGame();
+        });
+        
+        playAgainBtn.addEventListener('click', () => {
+            gameOverScreen.style.display = 'none';
+            startGame();
+        });
+        
+        githubInfoBtn.addEventListener('click', () => {
+            hostingInfo.style.display = hostingInfo.style.display === 'block' ? 'none' : 'block';
         });
         
         tankClasses.forEach(tankClass => {
@@ -416,7 +465,6 @@
             // Reset player
             player.x = canvas.width / 2;
             player.y = canvas.height / 2;
-            player.bullets = [];
             player.score = 0;
             player.level = 1;
             
@@ -438,8 +486,8 @@
                 createShape();
             }
             
-            // Initial enemy tanks in solo mode
-            if (!isMultiplayer) {
+            // Initial enemy tanks in AI mode
+            if (gameMode === 'ai') {
                 for (let i = 0; i < 3; i++) {
                     createEnemyTank();
                 }
@@ -516,7 +564,7 @@
                 dy: Math.sin(angle) * speed,
                 damage: damage,
                 lifetime: 60,
-                playerId: isPlayerBullet ? playerId : null
+                playerId: isPlayerBullet ? 'player' : null
             });
         }
         
@@ -642,7 +690,7 @@
                 }
                 
                 // Check collision with player
-                if (bullet.playerId !== playerId) {
+                if (bullet.playerId !== 'player') {
                     const dist = Math.hypot(bullet.x - player.x, bullet.y - player.y);
                     if (dist < bullet.radius + player.radius) {
                         // Player takes damage
@@ -658,7 +706,7 @@
                 // Check collision with enemy tanks
                 for (let j = enemyTanks.length - 1; j >= 0; j--) {
                     const enemy = enemyTanks[j];
-                    if (bullet.playerId === playerId) {
+                    if (bullet.playerId === 'player') {
                         const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
                         if (dist < bullet.radius + enemy.radius) {
                             // Enemy takes damage
@@ -708,15 +756,9 @@
         
         function gameOver() {
             gameRunning = false;
-            startScreen.style.display = 'flex';
-            document.querySelector('#start-button').textContent = 'Play Again';
-            
-            // Show game over message
-            const gameOverMsg = document.createElement('div');
-            gameOverMsg.innerHTML = `<h2>Game Over</h2><p>Final Score: ${score}</p>`;
-            gameOverMsg.style.color = 'white';
-            gameOverMsg.style.textAlign = 'center';
-            startScreen.insertBefore(gameOverMsg, startScreen.firstChild.nextSibling);
+            finalScoreElement.textContent = score;
+            finalLevelElement.textContent = level;
+            gameOverScreen.style.display = 'flex';
         }
         
         function drawPlayer() {
@@ -828,7 +870,7 @@
         function updateUI() {
             scoreElement.textContent = `Score: ${score}`;
             levelElement.textContent = `Level: ${level}`;
-            playersElement.textContent = `Players: ${isMultiplayer ? '1/2' : '1'}`;
+            playersElement.textContent = `Mode: ${gameMode === 'solo' ? 'Solo' : 'vs AI'}`;
             healthFill.style.width = health + '%';
         }
         
@@ -842,12 +884,19 @@
             updatePlayer();
             updateBullets();
             updateShapes();
-            updateEnemyTanks();
+            
+            if (gameMode === 'ai') {
+                updateEnemyTanks();
+            }
             
             // Draw everything
             drawShapes();
             drawBullets();
-            drawEnemyTanks();
+            
+            if (gameMode === 'ai') {
+                drawEnemyTanks();
+            }
+            
             drawPlayer();
             
             // Update UI
@@ -862,11 +911,12 @@
         
         // Instructions for GitHub Pages hosting
         console.log("To host on GitHub Pages:");
-        console.log("1. Create a GitHub account if you don't have one");
-        console.log("2. Create a new repository named 'username.github.io' (replace username with your GitHub username)");
-        console.log("3. Upload this HTML file as 'index.html'");
-        console.log("4. Enable GitHub Pages in your repository settings");
-        console.log("5. Your game will be available at https://username.github.io");
+        console.log("1. Save this page as index.html");
+        console.log("2. Create a GitHub account if you don't have one");
+        console.log("3. Create a new repository named username.github.io");
+        console.log("4. Upload index.html to your repository");
+        console.log("5. Enable GitHub Pages in repository settings");
+        console.log("6. Your game will be available at https://username.github.io");
     </script>
 </body>
 </html>
